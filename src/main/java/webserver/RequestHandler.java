@@ -65,21 +65,21 @@ public class RequestHandler extends Thread {
 
             // GET /user/create?userId=t&password=t&name=t&email=t%40g HTTP/1.1
             // 정보가 위의 주석처럼 넘어오면 회원 가입 요청이다
-            if (url.startsWith("/user/create")) {
-                String body = IOUtils.readData(br,contentLength);
+            if ("/user/create".equals(url)) {
+                String body = IOUtils.readData(br, contentLength);
                 // Utills의 parseQueryString을 이용해 구분
                 Map<String, String> info = HttpRequestUtils.parseQueryString(body);
 
                 User user = new User(info.get("userId"), info.get("password"), info.get("name"), info.get("email"));
-                log.debug("request : {}", user);
-
-            } else {
-                // 요청 URL에 해당하는 파일을 wdbapp 디렉토리에서 읽어 전달한다.
-                byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
-//            log.debug("request : {}", body);
-                response200Header(dos, body.length);
-                responseBody(dos, body);
+                log.debug("User : {}", user);
+                url = "/index.html";
             }
+            // 요청 URL에 해당하는 파일을 wdbapp 디렉토리에서 읽어 전달한다.
+            byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
+//            log.debug("request : {}", body);
+            response200Header(dos, body.length);
+            responseBody(dos, body);
+
 
         } catch (IOException e) {
             log.error(e.getMessage());
