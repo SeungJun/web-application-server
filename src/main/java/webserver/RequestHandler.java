@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.Socket;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.Collection;
 import java.util.Map;
 
 import db.DataBase;
@@ -40,12 +41,25 @@ public class RequestHandler extends Thread {
             if (line == null) return;
 
             String[] tokens = line.split(" ");
+            boolean logined = false;
+
             // body의 데이터의 길이를 저장할 변수
             int contentLength = 0;
             while (!"".equals(line)) {
                 log.debug("header : {}", line);
                 // 라인을 한 줄씩 읽어온다.
                 line = br.readLine();
+                if(line.contains("Cookie")){
+                    // 헤더중 쿠키의 값을 가져와 로그인 여부를 확인
+                    String[] temp = line.split(":");
+                    Map<String, String> cookies = HttpRequestUtils.parseCookies(temp[1].trim());
+                    String value = cookies.get("logined");
+                    if(value == null){
+                        logined =false;
+                    }
+                    logined  = Boolean.parseBoolean(value);
+                    log.debug("test :{}",logined);
+                }
                 if (line.contains("Content-Length")) {
                     // 헤더중 content-length가 포함 되어 있으면 저장
                     String[] temp = line.split(":");
@@ -91,10 +105,33 @@ public class RequestHandler extends Thread {
                 }else {
                     responseResource(out,"/user/login_failed.html");
                 }
-            }else {
+            } else if ("/user/list".equals(url)) {
+                // 로그인 상태가 아니라면 로그인 화면으로 이동
+                if(!logined){
+                    responseResource(out, "/user/login.html");
+                    return;
+                }
+                Collection<User> users = DataBase.findAll();
+                StringBuilder sb = new StringBuilder();
+                sb.append("<table border ='1'>");
+                for(User user : users){
+                    sb.append("<tr>");
+                    sb.append("<td>" + user.getUserId() + "</td>");
+                    sb.append("<td>" + user.getName() + "</td>");
+                    sb.append("<td>" + user.getEmail() + "</td>");
+                    sb.append("</tr>");
+                }
+                sb.append("</table>");
+                // 요청 URL에 해당하는 파일을 wdbapp 디렉토리에서 읽어 전달한다.
+                byte[] body = sb.toString().getBytes();
+                DataOutputStream dos = new DataOutputStream(out);
+                response200Header(dos, body.length);
+                responseBody(dos, body);
+            }else if (url.endsWith(".css")) {
+            }
+            else {
                 responseResource(out, url);
             }
-
         } catch (IOException e) {
             log.error(e.getMessage());
         }
@@ -145,6 +182,17 @@ public class RequestHandler extends Thread {
             dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
             dos.writeBytes("Set-Cookie: logined=true \r\n");
             dos.writeBytes("Location: /index.html \r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private void response200CssHeader(DataOutputStream dos, int lengthOfBodyContent) {
+        try {
+            dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
+            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());
