@@ -1,10 +1,8 @@
 package webserver;
 
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.Socket;
+import java.net.URL;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +22,22 @@ public class RequestHandler extends Thread {
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
+
             DataOutputStream dos = new DataOutputStream(out);
+            // InputStreamReader를 한줄로 읽기 위해서 사용
+            InputStreamReader sr = new InputStreamReader(in);
+            BufferedReader br = new BufferedReader(sr);
+
+            String line = br.readLine();
+            // line이 null값이면 예외처리
+            if(line == null) return;
+
+            while (!"".equals(line)){
+                log.debug("request : {}",line);
+                // 라인을 한 줄씩 읽어온다.
+                line = br.readLine();
+                System.out.printf(line);
+            }
             byte[] body = "Hello World test".getBytes();
             response200Header(dos, body.length);
             responseBody(dos, body);
