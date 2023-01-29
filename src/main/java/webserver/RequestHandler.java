@@ -6,6 +6,7 @@ import java.net.URL;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.GetHttpHeader;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -29,15 +30,19 @@ public class RequestHandler extends Thread {
             BufferedReader br = new BufferedReader(sr);
 
             String line = br.readLine();
+
             // line이 null값이면 예외처리
             if(line == null) return;
 
-            while (!"".equals(line)){
-                log.debug("request : {}",line);
-                // 라인을 한 줄씩 읽어온다.
-                line = br.readLine();
-                System.out.printf(line);
-            }
+//            while (!"".equals(line)){
+//                log.debug("request : {}",line);
+//                // 라인을 한 줄씩 읽어온다.
+//                line = br.readLine();
+//                System.out.printf(line);
+//            }
+
+            String url = GetHttpHeader.GetHttpUrl(line);
+            log.debug("request : {}", url);
             byte[] body = "Hello World test".getBytes();
             response200Header(dos, body.length);
             responseBody(dos, body);
