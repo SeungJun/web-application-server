@@ -6,6 +6,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.util.Map;
 
+import db.DataBase;
 import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +30,6 @@ public class RequestHandler extends Thread {
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
 
-            DataOutputStream dos = new DataOutputStream(out);
             // InputStreamReader를 한줄로 읽기 위해서 사용
             InputStreamReader sr = new InputStreamReader(in);
             BufferedReader br = new BufferedReader(sr);
@@ -72,14 +72,28 @@ public class RequestHandler extends Thread {
 
                 User user = new User(info.get("userId"), info.get("password"), info.get("name"), info.get("email"));
                 log.debug("User : {}", user);
-                url = "/index.html";
+                DataOutputStream dos = new DataOutputStream(out);
+                response302Header(dos,"/index.html");
+                DataBase.addUser(user);
+            } else if ("/user/login".equals(url)) {
+                String body = IOUtils.readData(br, contentLength);
+                // Utills의 parseQueryString을 이용해 구분
+                Map<String, String> info = HttpRequestUtils.parseQueryString(body);
+                // login Id 소문자
+                User user = DataBase.findUserById(info.get("userId"));
+                if(user == null){
+                    responseResource(out,"/user/login_failed.html");
+                    return;
+                }
+                if(user.getPassword().equals(info.get("password"))){
+                    DataOutputStream dos = new DataOutputStream(out);
+                    response302LoginSuccessHeader(dos);
+                }else {
+                    responseResource(out,"/user/login_failed.html");
+                }
+            }else {
+                responseResource(out, url);
             }
-            // 요청 URL에 해당하는 파일을 wdbapp 디렉토리에서 읽어 전달한다.
-            byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
-//            log.debug("request : {}", body);
-            response200Header(dos, body.length);
-            responseBody(dos, body);
-
 
         } catch (IOException e) {
             log.error(e.getMessage());
@@ -101,6 +115,37 @@ public class RequestHandler extends Thread {
         try {
             dos.write(body, 0, body.length);
             dos.flush();
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private void response302Header(DataOutputStream dos, String url) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
+            dos.writeBytes("Location: " +url +" \r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private void responseResource(OutputStream out, String url) throws IOException{
+        // 요청 URL에 해당하는 파일을 wdbapp 디렉토리에서 읽어 전달한다.
+        DataOutputStream dos = new DataOutputStream(out);
+
+        byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
+//            log.debug("request : {}", body);
+        response200Header(dos, body.length);
+        responseBody(dos, body);
+    }
+
+    private void response302LoginSuccessHeader(DataOutputStream dos) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
+            dos.writeBytes("Set-Cookie: logined=true \r\n");
+            dos.writeBytes("Location: /index.html \r\n");
+            dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());
         }
