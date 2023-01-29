@@ -3,6 +3,7 @@ package webserver;
 import java.io.*;
 import java.net.Socket;
 import java.net.URL;
+import java.nio.file.Files;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,16 +35,12 @@ public class RequestHandler extends Thread {
             // line이 null값이면 예외처리
             if(line == null) return;
 
-//            while (!"".equals(line)){
-//                log.debug("request : {}",line);
-//                // 라인을 한 줄씩 읽어온다.
-//                line = br.readLine();
-//                System.out.printf(line);
-//            }
-
+            // 읽어온 HTTP 요청 정보에서 첫번째 줄에서 요청 URL을 가져온다.
             String url = GetHttpHeader.GetHttpUrl(line);
             log.debug("request : {}", url);
-            byte[] body = "Hello World test".getBytes();
+            // 요청 URL에 해당하는 파일을 wdbapp 디렉토리에서 읽어 전달한다.
+            byte[] body = Files.readAllBytes(new File("./webapp"+url).toPath());
+//            log.debug("request : {}", body);
             response200Header(dos, body.length);
             responseBody(dos, body);
         } catch (IOException e) {

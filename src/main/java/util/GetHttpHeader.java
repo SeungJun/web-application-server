@@ -4,6 +4,7 @@ public class GetHttpHeader {
 
     // 클래스 이름을 어떻게 지어야 할지
     // 메소드의 반환값과 매개변수는 어떻게 받아야할지
+    // 테스트 코드를 어떻게 작성할지
     public static String GetHttpUrl(String input){
 
             String []tokens=input.split(" ");
