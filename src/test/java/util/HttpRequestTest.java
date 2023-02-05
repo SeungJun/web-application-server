@@ -1,7 +1,6 @@
 package util;
 
 import org.junit.Test;
-import webserver.HttpRequest;
 
 import java.io.File;
 import java.io.FileInputStream;
