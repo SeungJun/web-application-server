@@ -18,6 +18,8 @@ import util.IOUtils;
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
 
+
+
     private Socket connection;
 
     public RequestHandler(Socket connectionSocket) {
@@ -28,11 +30,14 @@ public class RequestHandler extends Thread {
         log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(),
                 connection.getPort());
 
+        // Socket을 통하여 클라이언트와 서버가 통신한다
+        // 클라이언트가 서버에게 보낸 정보를 inputstream을 통해 입력 받고 서버가 클라이언트에게 보내는것은 outputstream을 이용한다.
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
 
             // InputStreamReader를 한줄로 읽기 위해서 사용
-            InputStreamReader sr = new InputStreamReader(in);
+            // 요청을 받을때 UTF-8로 인코딩 해주기
+            InputStreamReader sr = new InputStreamReader(in,"UTF-8");
             BufferedReader br = new BufferedReader(sr);
 
             String line = br.readLine();
@@ -51,19 +56,14 @@ public class RequestHandler extends Thread {
                 line = br.readLine();
                 if(line.contains("Cookie")){
                     // 헤더중 쿠키의 값을 가져와 로그인 여부를 확인
-                    String[] temp = line.split(":");
-                    Map<String, String> cookies = HttpRequestUtils.parseCookies(temp[1].trim());
-                    String value = cookies.get("logined");
-                    if(value == null){
-                        logined =false;
-                    }
-                    logined  = Boolean.parseBoolean(value);
-                    log.debug("test :{}",logined);
+
+
+                    logined  = isLogin(line);
                 }
+                // POST 방식으로 동작 할 시 헤더에 포함되는 내용으로 본문데이터에 대한 길이가 담겨있다.
                 if (line.contains("Content-Length")) {
                     // 헤더중 content-length가 포함 되어 있으면 저장
-                    String[] temp = line.split(":");
-                    contentLength = Integer.parseInt(temp[1].trim());
+                    contentLength = getContentLength(line);
                 }
             }
 
@@ -128,6 +128,11 @@ public class RequestHandler extends Thread {
                 response200Header(dos, body.length);
                 responseBody(dos, body);
             }else if (url.endsWith(".css")) {
+
+                DataOutputStream dos = new DataOutputStream(out);
+                byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
+                response200CssHeader(dos, body.length);
+                responseBody(dos, body);
             }
             else {
                 responseResource(out, url);
@@ -137,9 +142,13 @@ public class RequestHandler extends Thread {
         }
     }
 
+    // 응답을 해주는 것
+    // 상태코드 200은 성공을 의미
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
         try {
+            // 상태라인
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            // 응답 헤더
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
@@ -191,11 +200,29 @@ public class RequestHandler extends Thread {
     private void response200CssHeader(DataOutputStream dos, int lengthOfBodyContent) {
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            // Content type을 cc로 바꿔준다.
             dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());
         }
+    }
+
+    private int getContentLength(String line){
+        // 헤더중 content-length가 포함 되어 있으면 저장
+        String[] temp = line.split(":");
+        return Integer.parseInt(temp[1].trim());
+    }
+
+    private boolean isLogin(String line){
+        // 헤더중 쿠키의 값을 가져와 로그인 여부를 확인
+        String[] temp = line.split(":");
+        Map<String, String> cookies = HttpRequestUtils.parseCookies(temp[1].trim());
+        String value = cookies.get("logined");
+        if( value == null){
+            return false;
+        }
+        return  Boolean.parseBoolean(value);
     }
 }
