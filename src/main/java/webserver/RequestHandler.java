@@ -12,6 +12,7 @@ import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import util.GetHttpHeader;
+import util.HttpRequest;
 import util.HttpRequestUtils;
 import util.IOUtils;
 
@@ -35,79 +36,44 @@ public class RequestHandler extends Thread {
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
 
-            // InputStreamReader를 한줄로 읽기 위해서 사용
-            // 요청을 받을때 UTF-8로 인코딩 해주기
-            InputStreamReader sr = new InputStreamReader(in,"UTF-8");
-            BufferedReader br = new BufferedReader(sr);
-
-            String line = br.readLine();
+            HttpRequest request = new HttpRequest(in);
+            String path = getDefaultPath(request.getPath());
 
             // line이 null값이면 예외처리
-            if (line == null) return;
 
-            String[] tokens = line.split(" ");
             boolean logined = false;
-
-            // body의 데이터의 길이를 저장할 변수
-            int contentLength = 0;
-            while (!"".equals(line)) {
-                log.debug("header : {}", line);
-                // 라인을 한 줄씩 읽어온다.
-                line = br.readLine();
-                if(line.contains("Cookie")){
-                    // 헤더중 쿠키의 값을 가져와 로그인 여부를 확인
-
-
-                    logined  = isLogin(line);
-                }
-                // POST 방식으로 동작 할 시 헤더에 포함되는 내용으로 본문데이터에 대한 길이가 담겨있다.
-                if (line.contains("Content-Length")) {
-                    // 헤더중 content-length가 포함 되어 있으면 저장
-                    contentLength = getContentLength(line);
-                }
-            }
-
-            log.debug("request : {}", line);
-
-
-            // line을 계속 사용해서 더이상 토큰으로 구분 할 수없다.
-            // 읽어온 HTTP 요청 정보에서 첫번째 줄에서 요청 URL을 가져온다.
-//            String url = GetHttpHeader.GetHttpUrl(line);
-//            log.debug("request : {}", url);
-
-            String url = tokens[1];
 
             // GET /user/create?userId=t&password=t&name=t&email=t%40g HTTP/1.1
             // 정보가 위의 주석처럼 넘어오면 회원 가입 요청이다
-            if ("/user/create".equals(url)) {
-                String body = IOUtils.readData(br, contentLength);
-                // Utills의 parseQueryString을 이용해 구분
-                Map<String, String> info = HttpRequestUtils.parseQueryString(body);
+            if ("/user/create".equals(path)) {
 
-                User user = new User(info.get("userId"), info.get("password"), info.get("name"), info.get("email"));
+
+                User user = new User(
+                        request.getParam("userID"),
+                        request.getParam("password"),
+                        request.getParam("name"),
+                        request.getParam("email")
+                );
                 log.debug("User : {}", user);
                 DataOutputStream dos = new DataOutputStream(out);
                 response302Header(dos,"/index.html");
                 DataBase.addUser(user);
-            } else if ("/user/login".equals(url)) {
-                String body = IOUtils.readData(br, contentLength);
-                // Utills의 parseQueryString을 이용해 구분
-                Map<String, String> info = HttpRequestUtils.parseQueryString(body);
+            } else if ("/user/login".equals(path)) {
                 // login Id 소문자
-                User user = DataBase.findUserById(info.get("userId"));
+                User user = DataBase.findUserById(request.getParam("userId"));
                 if(user == null){
                     responseResource(out,"/user/login_failed.html");
                     return;
                 }
-                if(user.getPassword().equals(info.get("password"))){
+                if(user.getPassword().equals(request.getParam("password"))){
                     DataOutputStream dos = new DataOutputStream(out);
                     response302LoginSuccessHeader(dos);
                 }else {
                     responseResource(out,"/user/login_failed.html");
                 }
-            } else if ("/user/list".equals(url)) {
+            } else if ("/user/list".equals(path)) {
                 // 로그인 상태가 아니라면 로그인 화면으로 이동
-                if(!logined){
+                if(!isLogin(request.getHeader("Cookie"))){
                     responseResource(out, "/user/login.html");
                     return;
                 }
@@ -127,15 +93,11 @@ public class RequestHandler extends Thread {
                 DataOutputStream dos = new DataOutputStream(out);
                 response200Header(dos, body.length);
                 responseBody(dos, body);
-            }else if (url.endsWith(".css")) {
-
-                DataOutputStream dos = new DataOutputStream(out);
-                byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
-                response200CssHeader(dos, body.length);
-                responseBody(dos, body);
+            }else if (path.endsWith(".css")) {
+                responseCssResource(out,path);
             }
             else {
-                responseResource(out, url);
+                responseResource(out, path);
             }
         } catch (IOException e) {
             log.error(e.getMessage());
@@ -186,6 +148,13 @@ public class RequestHandler extends Thread {
         responseBody(dos, body);
     }
 
+    private void responseCssResource(OutputStream out, String url) throws IOException {
+        DataOutputStream dos = new DataOutputStream(out);
+        byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
+        response200CssHeader(dos, body.length);
+        responseBody(dos, body);
+    }
+
     private void response302LoginSuccessHeader(DataOutputStream dos) {
         try {
             dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
@@ -224,5 +193,12 @@ public class RequestHandler extends Thread {
             return false;
         }
         return  Boolean.parseBoolean(value);
+    }
+
+    private String getDefaultPath(String path){
+        if(path.equals("/")){
+            return "/index.html";
+        }
+        return path;
     }
 }
